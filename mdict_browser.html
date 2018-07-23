@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<!--
+Created using JS Bin
+http://jsbin.com
+
+Copyright (c) 2015 by fengdh (http://jsbin.com/xamiwo/90/edit)
+
+Released under the MIT license: http://jsbin.mit-license.org
+-->
+<meta name="robots" content="noindex">
+<html>
+<head>
+  <meta name="description" content="MDict JS">
+  <!--script src="require.js"></script-->
+  <!--      破逼乎,关我提问,吃枣药丸></script-->
+  <!--      scrap bit-hoo,shut down my question,you go and frrrrrak your ceo's mother's daughter's son></script-->
+  <script src="jquery-1.11.1.js"></script>
+  <script src="jquery.mousewheel.js"></script>
+  <script type="text/javascript" src="seekbar.js"></script>
+  <script src="minilzo-decompress.js"></script>
+  <script src="murmurhash3.js"></script>
+
+  <link rel="stylesheet" type="text/css" href="css/seekbar.css"/>
+  <style>
+    p{
+      font-size: 16px;
+      margin:0px;
+      padding-bottom: 6px;
+      padding-top: 6px;
+      padding-left: 2px;
+      padding-right: 0;
+    }
+      .cp:hover
+      {
+        background-color:#397CCD;
+      }
+    body{
+      overflow: hidden;
+    }
+    div{
+      white-space:nowrap;
+    }
+    .ListView{
+      position: absolute; top: 0; left: 0;
+      width: 195px;
+      height: 100%;
+      box-sizing: border-box;
+      background: #191919;
+    }
+      #lv {
+        height:100%;
+        width:170px;
+        float:left;
+        color: #dddddd;
+        overflow: hidden;
+        padding: 0px;
+        padding-top:16px;
+        margin:0;
+        margin-left:5px;
+        margin-top: 10px;
+      }
+      #seekbar_container {
+        position: absolute; top: 0; left: 0;
+        height: 100%;
+        width: 30px;
+        float:left;
+        padding-left:0;
+        margin:0;
+        margin-left: 170px;
+        padding-left: 0;
+        margin-top: 8px;
+      }
+
+    .top_bar{
+      position: absolute; top: 0; left: 0;
+      width: 300px;
+      height: 40px;
+      z-index: 1;
+
+    }
+      #keyword{
+        width: 175px;
+        height: 15px;
+        margin:5px;
+      }
+  </style>
+
+  <script>
+      var pos = 0;
+      var lv  = document.getElementById("lv");
+      var capacity = 30;
+      var listSize = 100;
+      var seekBarmy;
+      var lastTarget;
+      //bind mouse wheel
+      $(function() {
+          $('#lv').bind('mousewheel', function(event) {
+              event.preventDefault();
+              pos+=event.deltaY*-1;
+              //console.log("pos: "+pos);
+              seekBarmy.setValue(listSize-pos);
+              rePopulate();
+          });
+      });
+
+      //counterfeiting a listview
+      function rePopulate(){//TODO: optimise
+          //计算一屏能放下几行.对于不同缩放级别,误差在0-8之间,可以接受.
+          //哈哈我真厉害
+          var line_height=0;
+
+          var tmp = $("p").css("font-size");
+          if(tmp.indexOf("px")!=-1)
+            line_height = parseFloat(tmp.substring(0,tmp.length-2));
+          tmp = $("p").css("padding-top");
+          if(tmp.indexOf("px")!=-1)
+              line_height += parseFloat(tmp.substring(0,tmp.length-2));
+
+          capacity = Math.floor($(window).innerHeight()/line_height);
+          //console.log("line_height: "+line_height);
+          //console.log("capacity: "+capacity);
+          var lastSelection=-1;
+          if(lastTarget) lastSelection = parseInt(lastTarget.id);
+          if(lv.hasChildNodes()) {
+              var childs = lv.childNodes,
+                  ln = childs.length;
+              for (var i = 0; i < ln; i++) {
+                  lv.removeChild(childs[0]);
+              }
+          }
+          if(pos<0) pos=0;
+          if(pos>=listSize) pos = listSize-1;
+          var couterfeitCounter = pos+capacity;
+
+
+          if(couterfeitCounter>listSize) couterfeitCounter = listSize;
+          for (var i=pos; i<couterfeitCounter; i++){
+              var item = document.createElement('p');
+
+              item.id = i;
+              item.className="cp";
+              item.onclick = p;
+              item.innerText = "Entry " + (i);
+              //lv.append(item);
+              if(lastSelection==i){
+                  lastTarget = item;
+                  item.style.setProperty("background-color","#4296FA");
+              }
+              lv.appendChild(item);
+          }
+      }
+      function p(e){
+          //console.log("p: "+e.target.id+typeof(e.target.id));
+          //console.log(e.target.style);
+          if(lastTarget)
+              //lastTarget.style.setProperty("background-color", "transparent");
+              lastTarget.removeAttribute("style");//有点喜欢上写页面了呢
+          lastTarget=e.target;
+          lastTarget.style.setProperty("background-color","#4296FA");
+
+          //e.target.background("#0000ff");
+      }
+
+      function Initialize() {
+          lv  = document.getElementById("lv");
+          rePopulate();
+          seekBarmy = new Seekbar.Seekbar({
+              renderTo: "#seekbar_container",
+              minValue: 0, maxValue: 255,
+              valueListener: function (value) {
+                  this.value = Math.round(value);
+                  updateProgress();
+              },
+              barSize:10,
+              needleSize:0.3,
+              thumbColor: '#00cccccc',
+              negativeColor: '#000',
+              positiveColor: '#000',
+              value: 0
+          });
+          seekBarmy.setValue(seekBarmy.maxValue)
+          setListSize(10000);
+      }
+      function setListSize(size){
+          listSize=size;
+          seekBarmy.maxValue=size;
+          seekBarmy.setValue(size);
+          lastTarget= undefined;
+          pos=0;
+          seekBarmy.render();
+          rePopulate();
+      }
+      //scroll bar scrolled
+      function updateProgress() {
+          //console.log("updateProgress: "+seekBarmy.value);
+          if(!seekBarmy) return;
+          pos = listSize - seekBarmy.value.toString(10);
+          rePopulate();
+          // $("#color-code").html(red);
+      }
+      function btnAction(){
+          //seekBarmy.setValue(100);
+      }
+      updateProgress();
+      //$(window).on('resize', 0, function() {
+      $(window).resize(function() {
+          if(seekBarmy) seekBarmy.render();
+          rePopulate();
+          //  alert($(window).width()); //浏览器时下窗口可视区域宽度
+          //  alert($(window).height()); //浏览器时下窗口可视区域高度
+          //  alert($(document).height()); //浏览器时下窗口文档的高度
+          //  alert($(document.body).height());//浏览器时下窗口文档body的高度
+          //  alert($(document.body).outerHeight(true));//浏览器时下窗口文档body的总高度 包括border padding margin
+          //
+          //  alert($(document).width());//浏览器时下窗口文档对于象宽度
+          //  alert($(document.body).width());//浏览器时下窗口文档body的高度
+          //  alert($(document.body).outerWidth(true));//浏览器时下窗口文档body的总宽度 包括border padding margin
+          ////////////console.log("line: "+$(document).height());
+          ////////////console.log("attr: "+document.getElementById("1").style.fontSize);
+          ////////////console.log("attr2: "+document.getElementsByTagName("p")[1].getAttribute("font-size"));
+          ////////////console.log("attr3: "+document.getElementsByTagName("p")[1].fontSize);
+
+          //////console.log("attr4: "+$("p").css("margin"));//16 0 16 15 px
+          //////console.log("attr4: "+$("p").css("font-size"));//16 0 16 15 px
+          ////////console.log("attr5: "+$("html").css("height"));
+          //////console.log("attr6: "+$(window).outerHeight());
+      });
+  </script>
+
+
+  <link rel="stylesheet" type="text/css" href="">
+  <meta charset="utf-8">
+  <title>MDict Browser</title>
+
+</head>
+<!------------------------------------------------------------------>
+<body onload="Initialize()">
+<div class="top_bar">
+  <input id="keyword" type="text" value="" >
+  <!--input id="搜索按钮" type="button" value="查" onclick="btnAction()"-->
+</div>
+
+<div class="ListView">
+  <p id="lv"> </p>
+  <p id="seekbar_container" ></p>
+</div>
+
+<script type="text/javascript" src="mdict.js"></script>
+
+<script type="text/javascript">
+//xxx
+</script>
+
+</body>
+</html>
